@@ -823,6 +823,12 @@ private:
         case op::AThrow: {
             Result<SimValue, Bail> popped = popChecked(pc);
             if (!popped.isOk()) return bailStep(popped.error());
+            if (popped.value().type != ValType::Ref) {
+                return bailStep({Bail::Reason::BadOperand, pc, "athrow 需要引用"});
+            }
+            if (popped.value().known && popped.value().ref.kind == RefPayload::Kind::Null) {
+                return bailStep({Bail::Reason::NotConcrete, pc, "athrow null 需要隐式 NPE 派发"});
+            }
             bool typeKnown = false;
             std::string thrownClass;
             if (popped.value().known && popped.value().ref.kind == RefPayload::Kind::Obj) {
@@ -1725,10 +1731,8 @@ private:
         Result<SimValue, Bail> ref = popChecked(pc);
         if (!ref.isOk()) return bailStep(ref.error());
 
-        // 引用、下标或值未知时无从落笔：整体跳过写（不破坏堆态），也不写假值——
-        // 写进来的假值会污染后续读取的 Known 性。
-        if (!ref.value().known || !idx.value().known || !value.value().known) {
-            return StepResult{};
+        if (!ref.value().known || !idx.value().known) {
+            return bailStep({Bail::Reason::NotConcrete, pc, "数组写入目标不具体"});
         }
         if (ref.value().ref.kind != RefPayload::Kind::Obj) {
             return bailStep({Bail::Reason::BadOperand, pc, "数组写入接收者非数组引用"});
@@ -1749,6 +1753,9 @@ private:
         }
         if (index < 0 || index >= static_cast<i64>(it->second.elems.size())) {
             return bailStep({Bail::Reason::BadOperand, pc, "数组下标越界"});
+        }
+        if (!value.value().known) {
+            return bailStep({Bail::Reason::NotConcrete, pc, "基本类型数组无法保存 Unknown 元素"});
         }
         it->second.elems[static_cast<usize>(index)] = encodeElem(insn.opcode, value.value());
         return StepResult{};
@@ -1836,7 +1843,7 @@ private:
             Result<SimValue, Bail> recv = popChecked(pc);
             if (!recv.isOk()) return bailStep(recv.error());
             if (!recv.value().known) {
-                return StepResult{}; // 接收者未知：无处落笔，不破坏堆态
+                return bailStep({Bail::Reason::NotConcrete, pc, "putfield 写入目标不具体"});
             }
             if (recv.value().ref.kind == RefPayload::Kind::Null) {
                 return bailStep({Bail::Reason::BadOperand, pc,

@@ -327,6 +327,14 @@ void testFieldFace() {
     unk.locals = {SimValue::unknownOf(ValType::Ref)};
     RunResult propagated = runIt(gf, s, std::move(unk));
     CHECK(propagated.kind == RunResult::Kind::Completed && !propagated.returnValue.known);
+
+    const Method pf = MethodBuilder("pf", "()V", 0)
+        .putField("p", "x", "I", ValType::I32).vreturn().build();
+    Prefill unknownWrite;
+    unknownWrite.stack = {SimValue::unknownOf(ValType::Ref), SimValue::knownI32(1)};
+    const RunResult fieldWrite = runIt(pf, s, std::move(unknownWrite));
+    CHECK(fieldWrite.kind == RunResult::Kind::Bailed &&
+          fieldWrite.bail.reason == Bail::Reason::NotConcrete);
 }
 
 // ── 观测面（design-takeover）：结构化步进、Bail 现场、帧快照、断点熔断与续跑 ─────────────
@@ -495,7 +503,7 @@ void testArraysAndAlloc() {
     CHECK(ur.kind == RunResult::Kind::Completed && !ur.returnValue.known &&
           ur.returnValue.type == ValType::I32);
 
-    // aastore 值未知：整体跳写不落假值；读取仍得初始 null。
+    // aastore 可以把 Unknown 写进精确定位的引用槽。
     Method aa = MethodBuilder("aa", "()Ljava/lang/Object;", 2)
                     .iconst(1)
                     .anewArray("Ljava/lang/Object;")
@@ -512,8 +520,23 @@ void testArraysAndAlloc() {
     Prefill aap;
     aap.locals = {SimValue::unknownOf(ValType::Ref), SimValue::unknownOf(ValType::Ref)};
     RunResult aar = runIt(aa, s, std::move(aap));
-    CHECK(aar.kind == RunResult::Kind::Completed && aar.returnValue.known &&
-          aar.returnValue.ref.kind == RefPayload::Kind::Null);
+    CHECK(aar.kind == RunResult::Kind::Completed && !aar.returnValue.known &&
+          aar.returnValue.type == ValType::Ref);
+
+    // 基本数组无法表示未知值，写入应停止，不能继续把旧值当成确定结果。
+    const Method ia = MethodBuilder("ia", "()V", 0).iastore().vreturn().build();
+    const Method newInts = MethodBuilder("newInts", "()[I", 0)
+        .iconst(1).newArray(10).areturn().build();
+    const SimValue ints = runIt(newInts, s).returnValue;
+    Prefill unknownValue;
+    unknownValue.stack = {ints, SimValue::knownI32(0), SimValue::unknownOf(ValType::I32)};
+    RunResult valueWrite = runIt(ia, s, std::move(unknownValue));
+    CHECK(valueWrite.kind == RunResult::Kind::Bailed && valueWrite.bail.reason == Bail::Reason::NotConcrete);
+
+    Prefill unknownIndex;
+    unknownIndex.stack = {ints, SimValue::unknownOf(ValType::I32), SimValue::knownI32(1)};
+    RunResult indexWrite = runIt(ia, s, std::move(unknownIndex));
+    CHECK(indexWrite.kind == RunResult::Kind::Bailed && indexWrite.bail.reason == Bail::Reason::NotConcrete);
 
     // multianewarray 全维分配：2×3 int[][]，内层长度可达、类名正确。
     Method m2 = MethodBuilder("m2", "()I", 1)
@@ -826,6 +849,12 @@ void testThrowDispatch() {
     RunResult r = runIt(any, s, std::move(unk));
     CHECK(r.kind == RunResult::Kind::Completed);
     CHECK(r.finalStack.size() == 1 && r.finalStack.front().type == ValType::Ref);
+
+    Prefill nullThrow;
+    nullThrow.stack = {SimValue::knownNull()};
+    RunResult nullResult = runIt(any, s, std::move(nullThrow));
+    CHECK(nullResult.kind == RunResult::Kind::Bailed &&
+          nullResult.bail.reason == Bail::Reason::NotConcrete);
 
     // 具名 catch + 已知堆对象：类名与 catchType 精确相等才派发。
     Method named = MethodBuilder("t2", "(I)V", 2)

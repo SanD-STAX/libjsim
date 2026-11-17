@@ -121,9 +121,9 @@ SimValue 是封闭 tagged union，三个成员：类型、是否已知、值。
 
 (1) 值内指令（常量装载、算术、转换、栈操作、数组长度等）：操作数全 Known 时算值写回；否则弹出操作数、压入正确类型的 Unknown，继续执行。用户由此可以跑通「直线段 + 关心点」的片段，无关指令不阻断执行。
 
-(2) 边界指令（invoke 系〔indy 与 invoke 同管道，CallRef 即接管键〕、new、monitor、athrow〔例外：异常表派发是引擎内建——catch-all/类名精确可确证时直接跳处理器，不可确证时 Bail〕）：核心不自带继续语义。先查接管注册，命中则由接管方给语义；未命中一律 Bail，原因码区分 UnsupportedCall / UnsupportedAlloc 等。字段访问单列（v0.3 定稿）：接管优先（:ref:`design-takeover` 字段接管），未命中走会话存贮底座——静态字段 Session.statics、实例字段 HeapObj.fields，缺项按字段类型传播 Unknown（字段没被赋值过是常态，不是失败）；Known null 接收者的 getfield/putfield 按 NPE 口径 Bail，与整数除零同一纪律。边界指令的语义只能来自注入，框架绝不编造。
+(2) 调用与分配边界由接管注册提供语义。invoke 系与 indy 共用 CallRef，缺少接管时返回 UnsupportedCall。new 缺少分配脚手架时返回 UnsupportedAlloc。字段访问优先使用 :ref:`design-takeover` 的字段接管，其后查 Session.statics 或 HeapObj.fields，读取缺项时按字段类型返回 Unknown。getfield/putfield 遇到已知 null 接收者时返回 Bail。异常表派发与其他执行近似见 :ref:`design-v1-scope`。
 
-这条契约的推论：核心不存在「尚未实现的内建」这种状态。语义要么被注入，要么 Bail，不存在第三种半成品状态。
+数组写入和实例字段写入需要可定位的目标，目标未知时以 Bail 停止。已知引用数组的具体槽可以保存 Unknown。基本类型数组按位型存储，写入未知值时以 Bail 停止。
 
 .. _design-single:
 
@@ -280,7 +280,7 @@ dasho profile 的骨架：调用点形态多样，不做形态匹配，直接对
 11. v1 不做
 -----------
 
-invokedynamic 的 bootstrap 折叠（indy.hpp 脚手架供组合域自拼，核心不自带；桥出的调用点缺接管仍 Bail）、athrow 的异常**类型**判定（jsim 无类层次面：catch-all 恒派发，具名 catch 只认堆类名精确相等，其余 Bail——区间派发本体已做）、多线程与 monitor（monitor 指令按类型传播为 Unknown）、类初始化链（字段值由预填或接管注入）、finalize 与 GC、JDK 9+ indy 字符串拼接（Bail）、跨方法递归（永久不做，见 D9）、浮点 strict/loose 模式差异（单点口径不分叉）。
+v1 的范围包括调用与分配接管、单方法执行和有限的异常表派发。具名 catch 仅在堆类名精确匹配时派发，涉及继承关系或 ``athrow null`` 的隐式异常时返回 Bail。monitor 指令采用无操作近似，checkcast 保留引用值。类初始化链、JVM 跨方法调用栈、GC、多线程、indy bootstrap 与 JDK 9+ indy 字符串拼接由消费方按需接管。浮点执行采用单一模式。
 
 .. _design-patches:
 
