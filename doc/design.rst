@@ -198,7 +198,7 @@ handler 与接管的签名统一收完整进入帧：栈、局部变量、pc、�
    * - 包
      - 内容
    * - jsim-str
-     - String 家族与 StringBuilder/StringBuffer 的调用接管，char[] 数组行为，字符串构造两阶段
+     - String 的 UTF-16 码元访问、相等性、哈希、切片和搜索，及 StringBuilder/StringBuffer 的构造和追加
    * - jsim-num
      - Integer/Long 的装箱拆箱与十进制解析（解析失败明确 Bail，不编造 0）
    * - jsim-reflect
@@ -240,13 +240,13 @@ dasho profile 的骨架：调用点形态多样，不做形态匹配，直接对
 
 (1) 真机对拍：算术与槽位重排恒等式以 HotSpot 实测结果为基准，不凭推导。对拍脚手架进共享测试层。
 
-(2) 语料：复用 mjt 仓已 vendor 的字节码语料；扩展包每条接管一测。jsim-jbc 用仓内合成语料（test/corpus，javac --release 8 产物 v52，运行期零 JDK 依赖），期望值由测试用同算法独立复算。
+(2) jsim-jbc 使用 test/corpus 中的合成 class，来自 ``javac --release 8``。测试运行时无需 JDK。Random 与 Math 的组合样例保存同一 class 在 HotSpot 上的执行结果。
 
 (3) 判稳件：多 seed 一致性与明文合法性校验做成库内断言件，profile 直接调用。
 
 (4) xmake 为核心和每个扩展包提供独立 target。jsim-test 覆盖核心及零依赖的 JDK 扩展包，jsim-jbc-test 通过 libjbc 验证桥接。jsim-jni-test 用 FakeMachine 验证 JNI 纯层。jsim-jni-uc 绑定层依赖 jsim-jni 与 Unicorn，供 jsim-demo-jni 和 jsim-jni-e2e-test 使用。jsim-jni-e2e-test 另依赖 libjbc、libjzip 和 libjdk_finder。Unicorn 2.1.4 从官方 xmake-repo 安装，也可用 \ ``--unicorn_dir=<本地预编译目录>``\ 指定。
 
-核心零外部依赖（纯 std 头文件），零依赖红线只约束 src/jsim 核心——核心不进任何包依赖、对扩展包零反向依赖。jbc 会话面（CodeUnit → jsim::Method）自 v0.3 起为官方扩展包 jsim-jbc（ext/jsim/jbc.hpp，依赖 libjbc）；MUTF-8 字符串面按家族口径在桥内原样透传（BMP 非零码元下与 UTF-8 逐字节相同，jsim-str 按 UTF-8 码元读）；libjstr 仅扩展包（ext/jsim）可选消费。
+核心仅依赖 C++ 标准库。jsim-jbc 依赖 libjbc，通过公开的 ``jsim/jbc.hpp`` 提供 CodeUnit 到 Method 的转换。关闭 ``with_jbc`` 和 ``with_unicorn`` 后，仍可独立构建核心、JDK 扩展和 JNI 纯层。
 
 .. _design-layout:
 
@@ -260,11 +260,11 @@ dasho profile 的骨架：调用点形态多样，不做形态匹配，直接对
      doc/design.rst
      doc/ext-jbc.rst    // jsim-jbc 桥扩展包：依赖声明、API 面、最小接管点
      doc/ext-jni.rst    // jsim-jni 扩展包：执行链路、API 面、口径、已知限制
-     src/jsim/          // 核心：value、session（堆+allocId+限制）、frame、
-                        //       handler（含栈效应表）、接管面、engine、bail、trace
-     ext/jsim/          // 扩展包：str、num、reflect、math、random、stacktrace、
-                        //           indy、jni（纯层）+ jni_uc（unicorn 绑定）、
-                        //           jbc（libjbc 桥）
+     src/jsim/          // 核心公开头和 engine.cpp
+     ext/xmake.lua      // 扩展目标及依赖
+     ext/<包名>/
+       include/jsim/   // 扩展公开头
+       src/            // 扩展实现与私有头
      demo/              // 逐场景可执行样例（类型传播 / 接管面 / 区间 / 解密 / 反射）
      demo/deobf/        // 静态 deobf 样例：jsim-jbc 桥 + 模型层改写 + 双查验
      test/              // 值代数、逐 handler、恒等式对拍、扩展包接管测试
@@ -273,7 +273,8 @@ dasho profile 的骨架：调用点形态多样，不做形态匹配，直接对
      test/corpus/       // jsim-jbc 合成语料（.java 源 + javac --release 8 产物）
                         //   jni/（jsim-jni 语料 jar 生成到此处：构建产物不入库）
 
-命名空间 jsim。仓规沿用生态约定：\ ``///``\ 行注释、禁 RTTI、i32/u32/usize、Result 值语义、Utf8String、约定式提交带作用域。
+每个包构建为独立静态库，保持 ``jsim/…`` 形式的公开 include 路径。xmake 的
+``add_deps`` 传递所选库和公开 include 目录。
 
 .. _design-v1-scope:
 
@@ -314,7 +315,7 @@ v0.3（2026-10-29）：扩展面补齐与口径收紧
 
 **(9) Str 身份位。** 首版 \ ``sameRef``\ 对所有 Str 载荷按内容判等，把 \ ``sb.toString() == 字面量``\ 假性折真（真 JVM 里 toString 产物是新对象，恒 false）——正是失败面「不静默走错」要防的事。现在 \ ``RefPayload.Str``\ 带 interned 位：ldc 字面量按常量池 intern 事实可判同；动态构造字符串身份不可判，\ ``if_acmpeq``\ 走分支接管三态（compareRef 三态 Same/Diff/Unknown）。
 
-**(10) multianewarray 全维分配。** 首版只建最外层、内层静默成 null，并引 D9（不跨方法递归）为据——数组嵌套是数据递归，不是方法递归，依据不成立。现在全部维度已知即按 JVMS 逐层建满；内层长度未知时最外层元素挂 Unknown(Ref)（内层确实存在，指向不可知，不猜 null）；已知负长度按 NegativeArraySizeException 口径 Bail。
+**(10) multianewarray 全维分配。** 长度已知时按 JVM 语义为每个父数组元素分配独立的子数组。内层长度未知时，最外层元素保留为 Unknown(Ref)。引擎在分配前检查负长度和总分配量，以 Bail 报告超限。
 
 **(11) jsim-num 解析越界。** \ ``Integer.parseInt("2147483648")``\ 首版静默回绕（注释自称「按 JVM 口径回绕」——那是算术口径，解析口径在 JDK 是 NumberFormatException）。现在越界与位数溢出一律解析失败 Bail，对齐本包「不编造 0」的契约。
 

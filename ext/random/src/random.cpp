@@ -1,21 +1,9 @@
-/// @file random.hpp
-/// @defgroup random jsim-random 随机数包
-/// @brief java.util.Random 的 48 位生成器（doc:ext-jdk-random）。
+#include "jsim/random.hpp"
 
-#pragma once
-
-#include <functional>
 #include <memory>
-#include <optional>
-
-#include "jsim/engine.hpp"
 
 namespace jsim::random {
-
-/// 为无参构造提供种子。缺席或返回 std::nullopt 时，初始种子为 Unknown。
-using SeedProvider = std::function<std::optional<i64>(const Frame&)>;
-
-namespace detail {
+namespace {
 
 inline constexpr char className[] = "java/util/Random";
 inline constexpr char seedSlot[] = "@seed";
@@ -136,11 +124,9 @@ inline ValueResult nextBytes(Frame& frame) {
     return result;
 }
 
-} // namespace detail
+} // namespace
 
-/// 注册 Random 构造、setSeed 与基础 next 系列。种子随堆对象保存在 Session。
-inline void install(Session& session, SeedProvider defaultSeed = {}) {
-    using namespace detail;
+void install(Session& session, SeedProvider defaultSeed) {
     session.allocScaffolds[className] = [] { return std::string{}; };
     auto& mocks = session.callMocks;
     // CallMock 在派发时会被复制，种子 provider 可以保留跨调用状态。

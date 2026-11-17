@@ -12,10 +12,11 @@ JDK 扩展包
 Math
 ----
 
-``jsim::math::install(session)`` 注册四种基本数值类型的
+``jsim::math::install(session)`` 为 Math 和 StrictMath 注册四种基本数值类型的
 ``abs``、``min``、``max``，以及 float/double 的 ``signum`` 和 ``round``、
-double 的 ``floor``、``ceil``、``sqrt``。数值未知时按返回类型传播
-Unknown。未注册的 Math 方法走常规接管流程。
+double 的 ``floor``、``ceil``、``sqrt``、``rint`` 和整数的
+``floorDiv``、``floorMod``。数值未知时按返回类型传播 Unknown。整数除数
+已知为零时返回 Bail。未注册的方法走常规接管流程。
 
 .. _ext-jdk-random:
 

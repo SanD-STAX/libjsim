@@ -3,7 +3,9 @@
 jsim-jbc 桥扩展包
 =================
 
-libjbc 字节码模型 ↔ libjsim 模拟执行的官方桥（\ ``ext/jsim/jbc.hpp``\ ，命名空间 \ ``jsim::jbcbridge``\ ）。v0.4 起从「消费方自备」（原设计 :ref:`design-testing`）升格为库内扩展包；demo/deobf 是它的首个消费方。
+jsim-jbc 提供 libjbc 字节码模型到 libjsim 模拟执行的桥。公开头是
+``jsim/jbc.hpp``，命名空间是 ``jsim::jbcbridge``，实现位于 ``ext/jbc/src/``。
+demo/deobf 使用这个包执行字节码片段。
 
 .. _ext-jbc-deps:
 

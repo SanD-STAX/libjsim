@@ -73,9 +73,9 @@ void testMath() {
     const double nan = std::numeric_limits<double>::quiet_NaN();
     const double inf = std::numeric_limits<double>::infinity();
     auto call = [&](const char* name, const char* desc, std::initializer_list<SimValue> args,
-                    SimValue expected) {
+                    SimValue expected, const char* owner = "java/lang/Math") {
         Method method = MethodBuilder("math", desc, 0)
-            .invoke("java/lang/Math", name, desc, expected.type)
+            .invoke(owner, name, desc, expected.type)
             .raw(returnOpcode(expected.type)).build();
         checkValue(run(session, method, args), expected, (std::string(name) + desc).c_str());
     };
@@ -110,6 +110,26 @@ void testMath() {
     call("sqrt", "(D)D", {d(-0.0)}, d(-0.0));
     call("sqrt", "(D)D", {d(-1)}, d(nan));
     call("sqrt", "(D)D", {d(9)}, d(3));
+
+    call("rint", "(D)D", {d(-0.5)}, d(-0.0));
+    call("rint", "(D)D", {d(1.5)}, d(2.0));
+    call("rint", "(D)D", {d(2.5)}, d(2.0), "java/lang/StrictMath");
+    call("rint", "(D)D", {d(-3.5)}, d(-4.0));
+    call("rint", "(D)D", {d(-inf)}, d(-inf));
+    call("rint", "(D)D", {d(nan)}, d(nan));
+    call("floorDiv", "(II)I", {i(4), i(-3)}, i(-2));
+    call("floorDiv", "(JI)J", {j(-4), i(3)}, j(-2), "java/lang/StrictMath");
+    call("floorDiv", "(JJ)J", {j(INT64_MIN), j(-1)}, j(INT64_MIN));
+    call("floorMod", "(II)I", {i(4), i(-3)}, i(-2));
+    call("floorMod", "(JI)I", {j(-4), i(3)}, i(2), "java/lang/StrictMath");
+    call("floorMod", "(JJ)J", {j(INT64_MIN), j(-1)}, j(0));
+    call("floorMod", "(JI)I", {j(-4), SimValue::unknownOf(ValType::I32)}, SimValue::unknownOf(ValType::I32));
+
+    const Method zero = MethodBuilder("zero", "(II)I", 0)
+        .invoke("java/lang/Math", "floorDiv", "(II)I", ValType::I32).ireturn().build();
+    const RunResult divided = run(session, zero, {SimValue::unknownOf(ValType::I32), i(0)});
+    check(divided.kind == RunResult::Kind::Bailed &&
+          divided.bail.reason == Bail::Reason::BadOperand, "floorDiv by zero");
 }
 
 void testRandom() {
