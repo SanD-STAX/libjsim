@@ -51,6 +51,24 @@ target("jsim-num")
     add_includedirs("ext", { public = true })
     add_deps("jsim")
 
+target("jsim-math")
+    set_kind("headeronly")
+    add_headerfiles("ext/jsim/math.hpp")
+    add_includedirs("ext", { public = true })
+    add_deps("jsim")
+
+target("jsim-random")
+    set_kind("headeronly")
+    add_headerfiles("ext/jsim/random.hpp")
+    add_includedirs("ext", { public = true })
+    add_deps("jsim")
+
+target("jsim-stacktrace")
+    set_kind("headeronly")
+    add_headerfiles("ext/jsim/stacktrace.hpp")
+    add_includedirs("ext", { public = true })
+    add_deps("jsim")
+
 target("jsim-reflect")
     set_kind("headeronly")
     add_headerfiles("ext/jsim/reflect.hpp")
@@ -122,8 +140,9 @@ target("jsim-demo-deobf")
 
 target("jsim-test")
     set_kind("binary")
-    add_files("test/main.cpp")
-    add_deps("jsim", "jsim-str", "jsim-num", "jsim-reflect", "jsim-indy")
+    add_files("test/main.cpp", "test/jdk.cpp")
+    add_deps("jsim", "jsim-str", "jsim-num", "jsim-reflect", "jsim-indy",
+             "jsim-math", "jsim-random", "jsim-stacktrace")
     if is_plat("windows") then
         add_cxxflags("/utf-8")
     end

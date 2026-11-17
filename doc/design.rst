@@ -12,7 +12,7 @@ libjsim 设计稿
 
 libjsim 是 JVM 字节码的单方法模拟执行器。它不追求执行完备，追求框架完备：用户在任何需要的位置都能接管语义，缺什么补什么，补到够用即完备。
 
-同类的两个先行者都死于执行完备路线。javavm-master（samczsun，java-deobfuscator 系）真跑整个 JDK 8，为复刻 HotSpot 维护了大量 native 移植，全部钉死在 JDK 8 内部符号上，JDK 9 即死。SSVM（xxDark，Recaf v3 引擎）opcode 全覆盖，但语义契约是逐位复刻某个具体 HotSpot 版本：boot 类取自宿主 classloader，数十个 Natives 类复刻 JDK native，字符串布局按 JDK 版本分叉。两者的共同点：opcode 之外的部分永远做不完，维护成本先于功能耗尽维护者。unicorn 生态位相反：它自己不实现指令语义，产品是启动接口加 hook 挡板，架构覆盖面与需求无关地稳定。
+javavm-master 和 SSVM 的运行范围包括 JDK，实现涉及 HotSpot 内部符号、原生方法与对象布局，维护成本跟随 JDK 版本变化。Unicorn 基于 QEMU 实现 CPU 指令语义，通过 hook 让调用方补充系统调用等运行环境。libjsim 采用类似的环境接管模型，并在 JVM 字节码层支持类型已知而值未知的片段执行。
 
 libjsim 的完备性由此定义为五个面：
 
@@ -136,7 +136,7 @@ SimValue 是封闭 tagged union，三个成员：类型、是否已知、值。
 
 跨方法一律不递归。调用点经接管面处理：扩展包的 mock、用户注册的接管函数、或 Bail。解密链跨多个方法时，调用方在 profile 层编排：取实参、跑被调方法的 sim、把结果作为接管返回值喂回调用方 sim。这个限制换来的是核心没有调用栈、没有递归深度问题、没有类层次解析、没有 clinit 自动链，实例轻到可以按调用点批量构造。
 
-便利入口按用途分两个封装：方法入口起步（栈平衡默认开）与任意点区间起步（栈平衡默认关，容忍预填栈与域外出口）。两者共用同一引擎，只是预填与开关的预设（v0.3 已实现：runEntry / runRegion）。
+帧快照保存栈和局部变量，堆与静态字段保留在 Session。重复执行有副作用的片段时，调用方需要用同一初始状态准备会话和接管环境，包括随机数种子或 JNI 状态。
 
 .. _design-takeover:
 
@@ -204,15 +204,15 @@ handler 与接管的签名统一收完整进入帧：栈、局部变量、pc、�
    * - jsim-reflect
      - Class.forName / getAnnotation / 注解元素访问器；元数据走 provider 注入，包内不解析 class 文件
    * - jsim-math
-     - Math 系与浮点辅助函数的调用接管
+     - Math 常用纯函数，涵盖 NaN、带符号零、整数最小值和舍入边界，见 :ref:`ext-jdk-math`
    * - jsim-random
-     - java/util/Random 的 48 位 LCG 复刻
+     - java.util.Random 的 48 位 LCG，种子由实参或调用方 provider 提供，见 :ref:`ext-jdk-random`
    * - jsim-stacktrace
-     - getStackTrace 假栈帧构造
+     - 将调用方提供的帧物化成 Thread.getStackTrace 结果，见 :ref:`ext-jdk-stacktrace`
    * - jsim-indy
      - invokedynamic 的 bootstrap 脚手架，供用户组合特定调用点形态
    * - jsim-jbc
-     - libjbc 字节码模型 ↔ jsim 模拟执行的官方桥：CodeUnit → jsim::Method 形状搬运、LDC 字符串面（setString 自动升格口径）、消费方最小接管点。唯一带外部依赖（libjbc）的扩展包，详见 :doc:`ext-jbc`
+     - libjbc 字节码模型与 jsim 的官方桥，依赖 libjbc。提供 CodeUnit 到 jsim::Method 的转换和 LDC 字符串读写，详见 :doc:`ext-jbc`
    * - jsim-jni
      - 本地方法接管的接缝与常用 mock 骨架：纯层（JNI 函数表、钩子分发、句柄池、编组、骨架、install 接缝，零依赖）+ jni-uc 绑定层（unicorn x86-64 Win64/SysV，env 表与 trap page 物化、ABI 编组、步数熔断）。native 由 unicorn 执行，JNI 调用转接钩子，用户钩子可整体替换任何 JNI 函数，见 :doc:`ext-jni`
 
@@ -244,7 +244,7 @@ dasho profile 的骨架：调用点形态多样，不做形态匹配，直接对
 
 (3) 判稳件：多 seed 一致性与明文合法性校验做成库内断言件，profile 直接调用。
 
-(4) 构建：delete-then-rebuild 门，测试产物进项目 test 目录。xmake 按包独立 target（jsim / jsim-str / jsim-num / jsim-reflect / jsim-indy / jsim-jbc / jsim-jni / jsim-jni-uc / jsim-demo / jsim-demo-deobf / jsim-demo-jni / jsim-test / jsim-jbc-test / jsim-jni-test / jsim-jni-e2e-test），扩展包互不依赖；jsim-jbc-test 与零依赖的 jsim-test 分立，libjbc 依赖只挂前者；jsim-jni-test 零 unicorn 依赖（FakeMachine 驱动纯层），unicorn 只挂 jsim-jni-uc 与 jsim-demo-jni；jsim-jni-e2e-test 挂 libjbc/libjzip/libjdk_finder（真机对拍腿用后者找本机 JDK）。jsim-jni-uc → jsim-jni 是绑定子面对语义面的位面分层，不是语义堆叠，记为「扩展包互不依赖」的唯一例外。unicorn 经官方 xmake-repo（2.1.4）；本机网络不通 release 包时可用 \ ``--unicorn_dir=<本地预编译目录>``\ 旁路，CI 不受影响。
+(4) xmake 为核心和每个扩展包提供独立 target。jsim-test 覆盖核心及零依赖的 JDK 扩展包，jsim-jbc-test 通过 libjbc 验证桥接。jsim-jni-test 用 FakeMachine 验证 JNI 纯层。jsim-jni-uc 绑定层依赖 jsim-jni 与 Unicorn，供 jsim-demo-jni 和 jsim-jni-e2e-test 使用。jsim-jni-e2e-test 另依赖 libjbc、libjzip 和 libjdk_finder。Unicorn 2.1.4 从官方 xmake-repo 安装，也可用 \ ``--unicorn_dir=<本地预编译目录>``\ 指定。
 
 核心零外部依赖（纯 std 头文件），零依赖红线只约束 src/jsim 核心——核心不进任何包依赖、对扩展包零反向依赖。jbc 会话面（CodeUnit → jsim::Method）自 v0.3 起为官方扩展包 jsim-jbc（ext/jsim/jbc.hpp，依赖 libjbc）；MUTF-8 字符串面按家族口径在桥内原样透传（BMP 非零码元下与 UTF-8 逐字节相同，jsim-str 按 UTF-8 码元读）；libjstr 仅扩展包（ext/jsim）可选消费。
 

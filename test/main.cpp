@@ -12,6 +12,8 @@
 
 using namespace jsim;
 
+int testJdkPackages();
+
 namespace {
 
 int g_total = 0;
@@ -912,5 +914,6 @@ int main() {
     testIndyPackage();
     testThrowDispatch();
     std::printf("[jsim-test] %d 项断言，%d 失败\n", g_total, g_fail);
-    return g_fail == 0 ? 0 : 1;
+    const int jdkFailures = testJdkPackages();
+    return g_fail == 0 && jdkFailures == 0 ? 0 : 1;
 }
