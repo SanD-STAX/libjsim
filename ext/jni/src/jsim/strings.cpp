@@ -1,4 +1,4 @@
-#include "guest.hpp"
+#include "detail/guest.hpp"
 
 namespace jsim::jni {
 namespace {

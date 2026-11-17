@@ -12,7 +12,7 @@ JVM 字节码单方法模拟执行器。202 条 opcode 有默认 handler，可�
 
 ## 文件组织
 
-核心位于 `src/jsim/`。每个扩展包各有一个 `ext/<包名>/` 目录，公开头放在 `include/jsim/`，实现放在 `src/`。例如 `jsim-math` 的入口是 `ext/math/include/jsim/math.hpp`，实现是 `ext/math/src/math.cpp`。
+核心的头文件和实现位于 `src/jsim/`，各扩展包采用 `ext/<包名>/src/jsim/`。例如 `jsim-math` 的 `math.hpp` 和 `math.cpp` 都在 `ext/math/src/jsim/`。
 
 核心和各扩展分别构建为静态库。消费方继续使用 `#include "jsim/engine.hpp"` 和 `#include "jsim/math.hpp"` 等公开头，通过 xmake 的 `add_deps("jsim", "jsim-math")` 选择需要的库。
 

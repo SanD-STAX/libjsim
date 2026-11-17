@@ -1,9 +1,10 @@
 local function extension(name, configure)
+    local source_dir = name .. "/src"
     target("jsim-" .. name)
         set_kind("static")
-        add_files(name .. "/src/*.cpp")
-        add_headerfiles(name .. "/include/(jsim/*.hpp)")
-        add_includedirs(name .. "/include", { public = true })
+        add_files(source_dir .. "/jsim/*.cpp")
+        add_headerfiles(source_dir .. "/(jsim/*.hpp)")
+        add_includedirs(source_dir, { public = true })
         add_deps("jsim")
         if configure then configure() end
     target_end()

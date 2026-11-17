@@ -3,8 +3,9 @@
 jsim-jbc 桥扩展包
 =================
 
-jsim-jbc 提供 libjbc 字节码模型到 libjsim 模拟执行的桥。公开头是
-``jsim/jbc.hpp``，命名空间是 ``jsim::jbcbridge``，实现位于 ``ext/jbc/src/``。
+jsim-jbc 提供 libjbc 字节码模型到 libjsim 模拟执行的桥。头文件和实现位于
+``ext/jbc/src/jsim/``，公开头的包含路径是 ``jsim/jbc.hpp``，命名空间是
+``jsim::jbcbridge``。
 demo/deobf 使用这个包执行字节码片段。
 
 .. _ext-jbc-deps:
@@ -13,7 +14,7 @@ demo/deobf 使用这个包执行字节码片段。
 --------------------
 
 - 本包依赖**外部包 libjbc**（\ ``jbc/ir``\ 会话面 + \ ``jbc/core``\ Op，经 luiox-repo \ ``add_requires("libjbc")``\ ），是第一个带外部依赖的扩展包位面；jsim-jni 落地后为第二个（见 :doc:`ext-jni`）。
-- 核心零依赖红线不动：src/jsim 纯 std 头文件，不进任何包依赖，对本包（及一切扩展包）零反向依赖。
+- 核心 ``src/jsim/`` 依赖 C++ 标准库。
 - 本包不依赖其他扩展包（str/num/reflect/indy…），组合发生在用户侧：典型消费方装配 = \ ``str::install``\ + \ ``str::installStringAlloc``\ + 你自己的接管。
 
 .. _ext-jbc-api:

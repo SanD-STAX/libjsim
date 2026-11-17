@@ -12,10 +12,10 @@ j2c 混淆器把 Java 方法编译成 native 函数，体内经 JNIEnv 函数表
 依赖声明与零依赖边界
 --------------------
 
-- \ ``jsim-jni``\ （公开头 ``jsim/jni.hpp``）提供 JNI 函数表、钩子分发、句柄池、编组、默认钩子与安装接口。实现位于 ``ext/jni/src/``，测试由 FakeMachine 驱动。
-- \ ``jsim-jni-uc``\ （公开头 ``jsim/jni_uc.hpp``）依赖 jsim-jni 和 Unicorn 2.1.4，提供 JNIEnv 表、trap page、x86-64 Win64/SysV ABI 编组和步数限制。实现位于 ``ext/jni-uc/src/``。
+- \ ``jsim-jni``\ （公开头 ``jsim/jni.hpp``）提供 JNI 函数表、钩子分发、句柄池、编组、默认钩子与安装接口。头文件和实现位于 ``ext/jni/src/jsim/``，测试由 FakeMachine 驱动。
+- \ ``jsim-jni-uc``\ （公开头 ``jsim/jni_uc.hpp``）依赖 jsim-jni 和 Unicorn 2.1.4，提供 JNIEnv 表、trap page、x86-64 Win64/SysV ABI 编组和步数限制。头文件和实现位于 ``ext/jni-uc/src/jsim/``。
 - 依赖纪律的例外记录：设计稿 :ref:`design-testing` 的「扩展包互不依赖」指语义包之间；绑定层依赖语义面（jni-uc → jni）与外部机器（uc）是位面分层，不是语义堆叠。jsim-jni 是第二个带外部依赖的包位面（第一个是 jsim-jbc）。
-- 核心零依赖红线不动：src/jsim 纯 std 头文件，对两个包零反向依赖。
+- 核心 ``src/jsim/`` 依赖 C++ 标准库。
 
 .. _ext-jni-chain:
 

@@ -1,6 +1,6 @@
 # Contributing
 
-核心 `src/jsim/` 提供字节码执行、类型传播和接管面，依赖 C++ 标准库。扩展包位于 `ext/<包名>/`，声明放在 `include/jsim/`，实现放在 `src/`。在 `ext/xmake.lua` 声明独立 target，并在对应 target 上声明依赖。每个扩展只向消费方公开自己的 include 目录和公共依赖。细节见 [doc/design.rst](doc/design.rst)。
+核心 `src/jsim/` 提供字节码执行、类型传播和接管面，依赖 C++ 标准库。扩展包将头文件和实现放在 `ext/<包名>/src/jsim/`。在 `ext/xmake.lua` 声明独立 target，并在对应 target 上声明依赖。每个扩展将自己的 `src/` 作为 include 根，消费方用 `jsim/...` 引用公开头。细节见 [doc/design.rst](doc/design.rst)。
 
 ## 构建与测试
 

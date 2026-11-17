@@ -262,9 +262,7 @@ dasho profile 的骨架：调用点形态多样，不做形态匹配，直接对
      doc/ext-jni.rst    // jsim-jni 扩展包：执行链路、API 面、口径、已知限制
      src/jsim/          // 核心公开头和 engine.cpp
      ext/xmake.lua      // 扩展目标及依赖
-     ext/<包名>/
-       include/jsim/   // 扩展公开头
-       src/            // 扩展实现与私有头
+     ext/<包名>/src/jsim/  // 扩展公开头和实现，私有头可放在 detail/
      demo/              // 逐场景可执行样例（类型传播 / 接管面 / 区间 / 解密 / 反射）
      demo/deobf/        // 静态 deobf 样例：jsim-jbc 桥 + 模型层改写 + 双查验
      test/              // 值代数、逐 handler、恒等式对拍、扩展包接管测试
@@ -273,8 +271,8 @@ dasho profile 的骨架：调用点形态多样，不做形态匹配，直接对
      test/corpus/       // jsim-jbc 合成语料（.java 源 + javac --release 8 产物）
                         //   jni/（jsim-jni 语料 jar 生成到此处：构建产物不入库）
 
-每个包构建为独立静态库，保持 ``jsim/…`` 形式的公开 include 路径。xmake 的
-``add_deps`` 传递所选库和公开 include 目录。
+每个包构建为独立静态库，消费方用 ``jsim/…`` 引用公开头。xmake 的
+``add_deps`` 传递所选库和作为 include 根的 ``src/`` 目录。
 
 .. _design-v1-scope:
 
